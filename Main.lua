@@ -245,6 +245,59 @@ Workspace.ChildAdded:Connect(function(m)
     end
 end)
 
+local noSelfGrabEnabled = true
+local noSelfConn
+local function setNoSelfGrab(enabled)
+    noSelfGrabEnabled = enabled
+    if noSelfConn then noSelfConn:Disconnect() noSelfConn=nil end
+    if enabled then
+        noSelfConn = RunService.Heartbeat:Connect(function()
+            local c = getCharacter()
+            if c then
+                for _,p in ipairs(c:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        p.CanQuery = false
+                        p.CanTouch = false
+                    end
+                end
+            end
+        end)
+        pcall(function()
+            if getrawmetatable and hookmetamethod and getnamecallmethod then
+                local mt = getrawmetatable(game)
+                if mt and not rawget(mt, "_moonFlingHooked") then
+                    rawset(mt, "_moonFlingHooked", true)
+                    local old = mt.__namecall
+                    setreadonly(mt, false)
+                    mt.__namecall = newcclosure(function(self, ...)
+                        local method = getnamecallmethod()
+                        local args = {...}
+                        if method == "FireServer" and tostring(self):lower():find("grab") then
+                            for _,a in ipairs(args) do
+                                if typeof(a) == "Instance" and a:IsDescendantOf(getCharacter()) then
+                                    return nil
+                                end
+                                if typeof(a) == "Vector3" then
+                                end
+                            end
+                        end
+                        return old(self, ...)
+                    end)
+                    setreadonly(mt, true)
+                end
+            end
+        end)
+    else
+        local c = getCharacter()
+        if c then for _,p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanQuery=true p.CanTouch=true end end end
+    end
+end
+setNoSelfGrab(true)
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    if noSelfGrabEnabled then setNoSelfGrab(true) end
+end)
+
 local hitboxConn
 local function updateHitbox(state)
     if hitboxConn then hitboxConn:Disconnect() hitboxConn=nil end
@@ -314,7 +367,7 @@ Tabs.Fling:AddInput("FlingTarget", { Title = "Target Username", Placeholder = "N
 Tabs.Fling:AddToggle("Hitbox", { Title = "Hitbox Expander", Default = false, Callback = function(v) hitboxEnabled=v updateHitbox(v) end })
 Tabs.Fling:AddSlider("HitboxSize", { Title = "Hitbox Size", Default = 12, Min = 4, Max = 30, Rounding = 0, Callback = function(v) hitboxSize=v end })
 Tabs.Fling:AddToggle("AntiFling", { Title = "Anti Fling (shield)", Default = true, Callback = function(v) antiFlingEnabled=v end })
-Tabs.Fling:AddToggle("NoSelfGrab", { Title = "No Self Grab (fix)", Default = true, Callback = function(v) end })
+Tabs.Fling:AddToggle("NoSelfGrab", { Title = "No Self Grab (fix)", Default = true, Callback = function(v) setNoSelfGrab(v) end })
 
 ------------------------------------------------
 -- MOVEMENT (from MoonHub)
