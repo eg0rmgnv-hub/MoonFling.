@@ -100,6 +100,7 @@ end
 local function applyFling(part, power)
     if not part or not part.Parent then return end
     if not part:IsA("BasePart") then return end
+    if part:IsDescendantOf(getCharacter()) then return end
     clearForces(part)
     local dir = (part.Position - getRoot().Position).Unit
     if dir.Magnitude == 0 then dir = Vector3.new(0,1,0) end
@@ -195,18 +196,34 @@ end
 
 Workspace.ChildAdded:Connect(function(m)
     if m.Name == "GrabParts" then
-        task.wait()
+        task.wait(0.05)
         pcall(function()
             local gp = m:FindFirstChild("GrabPart")
+            if not gp then gp = m:FindFirstChildWhichIsA("BasePart") end
             if not gp then return end
             local wc = gp:FindFirstChild("WeldConstraint")
+            if not wc then wc = m:FindFirstChild("WeldConstraint", true) end
             local part = wc and wc.Part1
             if not part then
                 for _,v in ipairs(m:GetDescendants()) do
                     if v:IsA("WeldConstraint") and v.Part1 then part = v.Part1 break end
                 end
             end
+            if not part then
+                if wc then
+                    local ok = pcall(function() wc:GetPropertyChangedSignal("Part1"):Wait() end)
+                    part = wc and wc.Part1
+                end
+            end
             if not part then return end
+            if part:IsDescendantOf(getCharacter()) then
+                local amOwner = m:GetAttribute("Owner") == LocalPlayer.Name or (gp and gp:GetAttribute("Owner") == LocalPlayer.Name)
+                if m:FindFirstChild("Owner") or amOwner or true then
+                    task.wait(0.02)
+                    pcall(function() wc:Destroy() m:Destroy() end)
+                end
+                return
+            end
             if superStrengthEnabled then
                 local vel = part.AssemblyLinearVelocity
                 if vel.Magnitude < 5 then vel = (part.Position - getRoot().Position).Unit * 10 end
@@ -296,7 +313,8 @@ end })
 Tabs.Fling:AddInput("FlingTarget", { Title = "Target Username", Placeholder = "Name...", Callback = function() end })
 Tabs.Fling:AddToggle("Hitbox", { Title = "Hitbox Expander", Default = false, Callback = function(v) hitboxEnabled=v updateHitbox(v) end })
 Tabs.Fling:AddSlider("HitboxSize", { Title = "Hitbox Size", Default = 12, Min = 4, Max = 30, Rounding = 0, Callback = function(v) hitboxSize=v end })
-Tabs.Fling:AddToggle("AntiFling", { Title = "Anti Fling (shield)", Default = false, Callback = function(v) antiFlingEnabled=v end })
+Tabs.Fling:AddToggle("AntiFling", { Title = "Anti Fling (shield)", Default = true, Callback = function(v) antiFlingEnabled=v end })
+Tabs.Fling:AddToggle("NoSelfGrab", { Title = "No Self Grab (fix)", Default = true, Callback = function(v) end })
 
 ------------------------------------------------
 -- MOVEMENT (from MoonHub)
